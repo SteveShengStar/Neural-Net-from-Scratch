@@ -39,10 +39,9 @@ class TwoLayerNet(object):
         """
         self.params = {}
         self.params['W1'] = std * np.random.randn(input_size, hidden_size)
-        self.params['b1'] = np.zeros(output_size)
-#         self.params['b1'] = np.zeros(hidden_size)
-#         self.params['W2'] = std * np.random.randn(hidden_size, output_size)
-#         self.params['b2'] = np.zeros(output_size)
+        self.params['b1'] = np.zeros(hidden_size)
+        self.params['W2'] = std * np.random.randn(hidden_size, output_size)
+        self.params['b2'] = np.zeros(output_size)
 
     def loss(self, X, y=None, reg=0.0):
         """
@@ -71,69 +70,87 @@ class TwoLayerNet(object):
         W1, b1 = self.params['W1'], self.params['b1']
         W2, b2 = self.params['W2'], self.params['b2']
         num_samples, D = X.shape
-
-        
         # Compute the forward pass
-#         scores = None
         step_size = 1e-0
-        reg = 1e-3 # regularization strength
         
-        for i in range(200):
-            #############################################################################
-            # TODO: Perform the forward pass, computing the class scores for the input. #
-            # Store the result in the scores variable, which should be an array of      #
-            # shape (N, C).                                                             #
-            #############################################################################
-            # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            # evaluate class scores, [N x K]
-            scores = np.dot(X, W1) + b1
-            
-            exp_scores = np.exp(scores)
-            probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True) # [N x K]
-            # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            # If the targets are not given then jump out, we're done
-            if y is None:
-                return scores
+        #############################################################################
+        # TODO: Perform the forward pass, computing the class scores for the input. #
+        # Store the result in the scores variable, which should be an array of      #
+        # shape (N, C).                                                             #
+        #############################################################################
+        # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****            
+        # evaluate class scores, [N x K]
+        hidden_layer = np.maximum(0, np.dot(X, W1) + b1) # applying the ReLU activation function
+        scores = np.dot(hidden_layer, W2) + b2
 
-            # Compute the loss
-            #############################################################################
-            # TODO: Finish the forward pass, and compute the loss. This should include  #
-            # both the data loss and L2 regularization for W1 and W2. Store the result  #
-            # in the variable loss, which should be a scalar. Use the Softmax           #
-            # classifier loss.                                                          #
-            #############################################################################
-            # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            num_samples = X.shape[0]
-            correct_logprobs = -np.log(probs[range(num_samples),y]) # TODO: are these correct class labels ?
-        
-            data_loss = np.sum(correct_logprobs)/num_samples # TODO: what is this ?
-            reg_loss = 0.5*reg*np.sum(W1*W1)                 # What is going on with the math here ?
-            loss = data_loss + reg_loss
-            # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        # compute the class probabilities
+        exp_scores = np.exp(scores)
+        probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+        # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            # Backward pass: compute gradients
-            grads = {}
-            #############################################################################
-            # TODO: Compute the backward pass, computing the derivatives of the weights #
-            # and biases. Store the results in the grads dictionary. For example,       #
-            # grads['W1'] should store the gradient on W1, and be a matrix of same size #
-            #############################################################################
-            # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            dscores = probs
-            dscores[range(num_examples),y] -= 1
-            dscores /= num_examples
-            
-            dW1 = np.dot(X.T, dscores)
-            db1 = np.sum(dscores, axis=0, keepdims=True)
-            dW1 += reg*W1 # don't forget the regularization gradient
-            
-            # perform a parameter update
-            W1 += -step_size * dW1
-            b1 += -step_size * db1
-            # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        # If the targets are not given then jump out, we're done
+        if y is None:
+            print("in here")
+            return scores
 
-        return (loss, grads)
+        # Compute the loss
+        #############################################################################
+        # TODO: Finish the forward pass, and compute the loss. This should include  #
+        # both the data loss and L2 regularization for W1 and W2. Store the result  #
+        # in the variable loss, which should be a scalar. Use the Softmax           #
+        # classifier loss.                                                          #
+        #############################################################################
+        # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+
+        correct_logprobs = -np.log(probs[range(num_samples),y])
+        data_loss = np.sum(correct_logprobs)/num_samples
+        reg_loss = 0.5*reg*np.sum(W1*W1) + 0.5*reg*np.sum(W2*W2)
+        loss = data_loss + reg_loss
+#             if i % 1000 == 0:
+#                 return loss, i
+        # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+
+        # Backward pass: compute gradients
+        grads = {}
+        #############################################################################
+        # TODO: Compute the backward pass, computing the derivatives of the weights #
+        # and biases. Store the results in the grads dictionary. For example,       #
+        # grads['W1'] should store the gradient on W1, and be a matrix of same size #
+        #############################################################################
+        # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        dscores = probs
+        dscores[range(num_samples),y] -= 1
+        dscores /= num_samples
+
+        dW2 = np.dot(hidden_layer.T, dscores)
+        db2 = np.sum(dscores, axis=0, keepdims=True)
+
+        # next backprop into hidden layer
+        dhidden = np.dot(dscores, W2.T)
+        # backprop the ReLU non-linearity
+        dhidden[hidden_layer <= 0] = 0
+
+        # finally into W,b
+        dW1 = np.dot(X.T, dhidden)
+        db1 = np.sum(dhidden, axis=0, keepdims=True)
+
+        grads['W1'] = dW1
+        grads['b1'] = db1
+        grads['W2'] = dW2
+        grads['b2'] = db2
+
+        # add regularization gradient contribution
+        dW2 += reg * W2
+        dW1 += reg * W1
+
+        # perform a parameter update
+        W1 = -step_size * dW1 + W1
+        b1 = -step_size * db1 + b1
+        W2 = -step_size * dW2 + W2
+        b2 = -step_size * db2 + b2
+        # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        return loss, grads
 
     def train(self, X, y, X_val, y_val,
               learning_rate=1e-3, learning_rate_decay=0.95,
